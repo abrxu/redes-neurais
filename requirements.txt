@@ -1,0 +1,13 @@
+streamlit
+tensorflow
+pandas
+numpy
+matplotlib
+scikit-learn
+pickle-mixin
+transformers
+torch
+seaborn
+shap
+openai
+accelerate>=0.26.0
