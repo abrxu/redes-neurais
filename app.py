@@ -1,5 +1,3 @@
-# app.py
-
 import streamlit as st
 import matplotlib.pyplot as plt
 from src.model_loader import load_encoders, load_trained_model, preprocess_input
@@ -9,6 +7,8 @@ import numpy as np
 from src.ai_helper import AIHelper
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc
+
+ai_helper = AIHelper()
 
 def load_data(file_path='data/data.csv'):
     if not os.path.exists(file_path):
@@ -28,15 +28,10 @@ def main():
         st.error(e)
         st.stop()
 
-    try:
-        api_key = st.secrets["OPENAI_API_KEY"]
-        ai_helper = AIHelper(api_key=api_key)
-    except Exception as e:
-        st.error(f"Erro ao carregar o modelo de AI: {e}")
-        ai_helper = None
-
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
+    if 'message_counter' not in st.session_state:
+        st.session_state.message_counter = 0
 
     st.sidebar.header("📝 Insira Seus Dados")
 
@@ -132,21 +127,31 @@ def main():
 
     elif option == "💬 Falar com AI":
         st.write("### 💬 Chat com o Assistente AI")
-        user_message = st.text_input("Você:", key='ai_input')
-        if user_message:
-            if ai_helper:
-                st.session_state.chat_history.append(("Você", user_message))
-                with st.spinner("Pensando..."):
-                    response = ai_helper.get_response(user_message)
-                st.session_state.chat_history.append(("AI", response))
 
-                for speaker, message in st.session_state.chat_history:
-                    if speaker == "Você":
-                        st.markdown(f"**Você:** {message}")
-                    else:
-                        st.markdown(f"**AI:** {message}")
+        # Exibe o histórico de chat
+        for speaker, message in st.session_state.chat_history:
+            if speaker == "Você":
+                st.markdown(f"**Você:** {message}")
             else:
-                st.write("**AI:** Desculpe, a funcionalidade AI não está disponível no momento.")
+                st.markdown(f"**AI:** {message}")
+
+        # Campo de entrada para nova mensagem com chave dinâmica
+        user_message = st.text_input("Digite sua mensagem:", key=f"input_{st.session_state.message_counter}")
+
+        # Processa a mensagem quando o usuário envia
+        if user_message:
+            # Adiciona a mensagem do usuário ao histórico
+            st.session_state.chat_history.append(("Você", user_message))
+            
+            # Obtém a resposta da IA
+            with st.spinner("Pensando..."):
+                response = ai_helper.get_response(user_message)
+            
+            # Adiciona a resposta ao histórico
+            st.session_state.chat_history.append(("AI", response))
+
+            # Incrementa o contador para atualizar o campo de entrada automaticamente
+            st.session_state.message_counter += 1
 
 if __name__ == "__main__":
     main()

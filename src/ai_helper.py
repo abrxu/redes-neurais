@@ -1,24 +1,20 @@
-from openai import OpenAI
+import requests
 
 class AIHelper:
-    def __init__(self, api_key):
-        if not api_key:
-            raise ValueError("A chave da API da OpenAI não foi fornecida.")
-        self.api_key = api_key
-        
-        self.client = OpenAI(api_key=self.api_key)
+    def __init__(self, api_url="http://localhost:3000/ia"):
+        self.api_url = api_url
 
-    def get_response(self, prompt, max_tokens=50):
+    def get_response(self, prompt, max_tokens=50, temperature=0.7):
+        payload = {"text": prompt}
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=max_tokens,
-                temperature=0.7,
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            return f"Desculpe, ocorreu um erro ao tentar gerar uma resposta: {str(e)}"
+            response = requests.post(self.api_url, json=payload)
+            response.raise_for_status()
+            return response.text.strip()
+        except requests.exceptions.RequestException as e:
+            return f"Erro ao obter resposta da IA: {e}"
+
+if __name__ == "__main__":
+    ai_helper = AIHelper()
+    prompt = "Explique como você funciona."
+    response = ai_helper.get_response(prompt)
+    print("Resposta da IA:", response)
