@@ -1,12 +1,15 @@
 import streamlit as st
 import matplotlib.pyplot as plt
-from src.model_loader import load_encoders, load_trained_model, preprocess_input
-import os
 import pandas as pd
 import numpy as np
+from src.model_loader import load_encoders, load_trained_model, preprocess_input
+from sklearn.metrics import roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
 from src.ai_helper import AIHelper
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, roc_curve, auc
+import os
+import plotly.express as px
+import plotly.graph_objects as go
+import json
 
 ai_helper = AIHelper()
 
@@ -68,62 +71,246 @@ def main():
 
     if option == "📊 Como você determinou isso?":
         st.write("""
-            A compatibilidade foi calculada utilizando um modelo de rede neural treinado com base em seus dados de idade, gênero, distância e área de interesse.
-            O modelo analisa como essas características influenciam as chances de ser aceito na área escolhida.
-        """)
-        st.write("**Detalhamento dos fatores considerados:**")
-        st.write("""
-            - **Idade**: Certas faixas etárias têm maior probabilidade de aceitação.
-            - **Gênero**: A aceitação pode variar de acordo com a distribuição de gênero.
-            - **Distância**: A proximidade da faculdade pode ser um fator relevante.
-            - **Área**: Diferentes áreas têm taxas de aceitação distintas baseadas nos dados analisados.
+            A compatibilidade foi calculada utilizando um modelo de rede neural treinado para prever as chances de uma pessoa ser aceita em uma determinada área de estudo com base em diversas características pessoais. O modelo foi desenvolvido e treinado usando dados sintéticos cuidadosamente construídos para refletir padrões de aceitação em áreas específicas, como Saúde, Tecnologia e Gestão/Negócios.
+
+            ### Como o Modelo Funciona
+
+            Este projeto utiliza uma rede neural do tipo feedforward com várias camadas densamente conectadas. As camadas incluem unidades de regularização, como Dropout e L2 regularization, para evitar overfitting, e Batch Normalization para estabilizar o treinamento. A arquitetura da rede foi projetada para processar as seguintes características de entrada:
+
+            - **Idade**: Certas faixas etárias foram configuradas para ter maior probabilidade de aceitação dependendo da área. Por exemplo, em Tecnologia, uma faixa etária mais jovem foi priorizada, enquanto em Gestão/Negócios, faixas etárias intermediárias e mais maduras foram consideradas favoravelmente.
+            - **Gênero**: A aceitação pode variar de acordo com a distribuição de gênero, pois as áreas apresentam padrões diferentes. Por exemplo, a área de Saúde foi configurada com uma maior aceitação de pessoas do gênero feminino, enquanto a área de Tecnologia priorizou pessoas do gênero masculino, com base em dados observacionais para construir o perfil esperado de aceitação.
+            - **Distância da Faculdade**: A proximidade da faculdade é um fator importante, especialmente em áreas onde a presença física é um diferencial. Distâncias menores (<15km) tendem a aumentar a probabilidade de aceitação, especialmente em Gestão/Negócios e Saúde.
+            - **Área de Interesse**: Diferentes áreas apresentam suas próprias taxas de aceitação. O modelo considera como as características de um candidato se alinham com os perfis que historicamente têm maior aceitação em cada área.
+
+            ### Processo de Treinamento do Modelo
+
+            O modelo foi treinado usando o método de K-Fold Cross Validation, o que permitiu avaliar seu desempenho em várias partições dos dados, melhorando a robustez da avaliação. Durante o treinamento, utilizamos métricas de acurácia e perda para monitorar o desempenho da rede neural em cada fold, ajustando automaticamente os pesos da rede para minimizar o erro nas previsões.
+
+            - **Early Stopping**: Este mecanismo foi utilizado para interromper o treinamento assim que o modelo parasse de melhorar na métrica de validação, evitando o treinamento excessivo (overfitting).
+            - **Otimizador Adam**: O otimizador Adam foi usado para ajustar os pesos do modelo, oferecendo uma convergência rápida e eficiente.
+
+            ### Avaliação do Desempenho
+
+            Após o treinamento, o modelo foi avaliado com métricas avançadas para garantir sua precisão:
+
+            - **Curva ROC e AUC**: A curva ROC foi utilizada para medir a capacidade do modelo em distinguir entre os candidatos aceitos e rejeitados. A área sob a curva (AUC) indica a eficácia da rede em fazer essa distinção, com valores mais altos indicando uma maior precisão.
+            - **Matriz de Confusão**: Essa matriz permitiu verificar onde o modelo acerta ou erra nas suas previsões, ajudando a identificar padrões de classificação incorreta.
+            - **Curvas de Acurácia e Perda**: Durante o treinamento, as curvas de acurácia e perda foram geradas para monitorar o aprendizado do modelo, tanto nos dados de treino quanto nos dados de validação.
+
+            ### Como a Predição é Realizada
+
+            Para determinar a compatibilidade de um candidato, o modelo recebe as características pessoais (idade, gênero, distância e área de interesse) e processa essas informações através de sua estrutura de camadas densas, produzindo uma pontuação de compatibilidade em percentual. Essa pontuação representa a probabilidade de aceitação do candidato na área escolhida, de acordo com o perfil treinado.
+
+            Esse processo utiliza os pesos ajustados durante o treinamento, que capturam as relações entre as características de entrada e a aceitação nas diferentes áreas. A predição final reflete como o perfil do candidato se alinha com os perfis históricos de aceitação.
+
+            ### Construção dos Dados de Treinamento
+
+            Os dados de treinamento foram gerados com base em distribuições configuradas para refletir um cenário realista de aceitação:
+
+            - Para cada área, a probabilidade de aceitação foi ajustada para refletir padrões observados. Por exemplo, em Tecnologia, os candidatos mais jovens e do gênero masculino receberam uma maior probabilidade de aceitação.
+            - As características de idade, gênero e distância foram distribuídas com base em probabilidades específicas para cada área, garantindo que os dados de treinamento representassem adequadamente os padrões de aceitação observados.
+
+            Esses dados foram então utilizados para treinar a rede neural, permitindo que o modelo aprenda a identificar os perfis mais compatíveis em cada área de interesse.
         """)
 
     elif option == "📈 Mostrar estatísticas":
-        data = load_data()
+        statistics_type = st.selectbox("Escolha o tipo de estatísticas que deseja visualizar:", ("📊 Dados Utilizados", "🤖 Desempenho da IA"))
 
-        try:
-            data['Gênero'] = encoders['gender'].transform(data['Gênero'])
-            data['Distância'] = encoders['distance'].transform(data['Distância'])
-            data['Área'] = encoders['area'].transform(data['Área'])
-        except Exception as e:
-            st.error(f"Erro ao codificar dados: {e}")
-            st.stop()
+        if statistics_type == "📊 Dados Utilizados":
+            data = load_data()
 
-        area_labels = encoders['area'].classes_
-        data['Área'] = data['Área'].astype(int).apply(lambda x: area_labels[x])
+            try:
+                # Mapeia valores numéricos para rótulos
+                data['Gênero'] = data['Gênero'].replace({0: 'Feminino', 1: 'Masculino'})
+                data['Distância'] = data['Distância'].replace({0: '<15km', 1: '>15km'})
+                data['Área'] = data['Área'].replace({0: 'Gestão/Negócios', 1: 'Saúde', 2: 'Tecnologia'})
 
-        st.subheader("📊 Distribuição de Matrículas por Área")
-        enrollment_counts = data.groupby(['Área', 'Matriculado']).size().unstack(fill_value=0)
-        enrollment_counts = enrollment_counts.rename(columns={0: 'Não Matriculado', 1: 'Matriculado'})
+            except Exception as e:
+                st.error(f"Erro ao codificar dados: {e}")
+                st.stop()
 
-        fig, ax = plt.subplots(figsize=(10,6))
-        enrollment_counts.plot(kind='bar', stacked=True, ax=ax, color=['salmon', 'skyblue'])
-        plt.title('Distribuição de Matrículas por Área')
-        plt.xlabel('Área')
-        plt.ylabel('Número de Estudantes')
-        plt.xticks(rotation=0)
-        plt.legend(title='Status')
-        st.pyplot(fig)
-        plt.close(fig)
+            # Gráfico interativo de Matrículas por Área
+            st.subheader("📊 Distribuição de Matrículas por Área")
+            enrollment_counts = data.groupby(['Área', 'Matriculado']).size().unstack(fill_value=0)
+            enrollment_counts = enrollment_counts.rename(columns={0: 'Não Matriculado', 1: 'Matriculado'})
 
-        st.subheader("📊 Distribuição de Gênero")
-        gender_counts = data['Gênero'].value_counts().rename(index={0: 'Masculino', 1: 'Feminino'})
-        fig2, ax2 = plt.subplots(figsize=(6,6))
-        gender_counts.plot(kind='pie', autopct='%1.1f%%', startangle=140, colors=['skyblue', 'salmon'], ax=ax2)
-        plt.title('Distribuição de Gênero dos Estudantes')
-        plt.ylabel('')
-        st.pyplot(fig2)
-        plt.close(fig2)
+            fig = px.bar(
+                enrollment_counts, 
+                x=enrollment_counts.index, 
+                y=['Matriculado', 'Não Matriculado'], 
+                title="Distribuição de Matrículas por Área",
+                labels={'value': 'Número de Estudantes', 'Área': 'Área', 'variable': 'Status'}
+            )
+            fig.update_layout(barmode='stack')
+            st.plotly_chart(fig)
 
-        st.subheader("🎂 Faixa Etária dos Estudantes")
-        fig3, ax3 = plt.subplots(figsize=(10,6))
-        plt.hist(data['Idade'], bins=range(18, 71, 5), color='skyblue', edgecolor='black')
-        plt.title('Distribuição de Idades dos Estudantes')
-        plt.xlabel('Idade')
-        plt.ylabel('Número de Estudantes')
-        st.pyplot(fig3)
-        plt.close(fig3)
+            # Gráfico interativo de Gênero
+            st.subheader("📊 Distribuição de Gênero")
+            gender_counts = data['Gênero'].value_counts()
+            fig2 = px.pie(
+                names=gender_counts.index, 
+                values=gender_counts.values, 
+                title="Distribuição de Gênero dos Estudantes"
+            )
+            st.plotly_chart(fig2)
+
+            # Gráfico interativo de Faixa Etária
+            st.subheader("🎂 Faixa Etária dos Estudantes")
+            fig3 = px.histogram(
+                data, x="Idade", nbins=10, title="Distribuição de Idades dos Estudantes",
+                labels={'Idade': 'Idade', 'count': 'Número de Estudantes'}
+            )
+            st.plotly_chart(fig3)
+
+            # Gráficos e estatísticas específicos para cada área
+            st.subheader("📊 Análise Específica por Área")
+
+            for area in data['Área'].unique():
+                st.markdown(f"### Área: {area}")
+
+                # Filtro para a área específica
+                area_data = data[data['Área'] == area]
+
+                # Gênero por área
+                gender_counts_area = area_data['Gênero'].value_counts(normalize=True) * 100
+                fig_gender_area = px.pie(
+                    names=gender_counts_area.index, 
+                    values=gender_counts_area.values, 
+                    title=f"Distribuição de Gênero na Área {area}",
+                    labels={'label': 'Gênero', 'value': 'Percentual'}
+                )
+                st.plotly_chart(fig_gender_area)
+
+                # Taxa de Matrícula por Gênero na área
+                enrollment_gender_area = area_data.groupby(['Gênero', 'Matriculado']).size().unstack(fill_value=0)
+                enrollment_gender_area = enrollment_gender_area.rename(columns={0: 'Não Matriculado', 1: 'Matriculado'})
+                fig_enrollment_gender_area = px.bar(
+                    enrollment_gender_area, 
+                    x=enrollment_gender_area.index, 
+                    y=['Matriculado', 'Não Matriculado'], 
+                    title=f"Taxa de Matrícula por Gênero na Área {area}",
+                    labels={'value': 'Número de Estudantes', 'Gênero': 'Gênero', 'variable': 'Status'}
+                )
+                fig_enrollment_gender_area.update_layout(barmode='stack')
+                st.plotly_chart(fig_enrollment_gender_area)
+
+                # Distribuição de Idade para Matriculados e Não Matriculados na área
+                fig_age_enrollment_area = px.histogram(
+                    area_data, x="Idade", color="Matriculado",
+                    title=f"Distribuição de Idade para Matriculados e Não Matriculados na Área {area}",
+                    labels={'Idade': 'Idade', 'count': 'Número de Estudantes', 'Matriculado': 'Status'},
+                    barmode='overlay'
+                )
+                fig_age_enrollment_area.update_traces(opacity=0.6)
+                st.plotly_chart(fig_age_enrollment_area)
+
+                # Distribuição de Matrícula por Distância na área
+                distance_enrollment_area = area_data.groupby(['Distância', 'Matriculado']).size().unstack(fill_value=0)
+                distance_enrollment_area = distance_enrollment_area.rename(columns={0: 'Não Matriculado', 1: 'Matriculado'})
+                fig_distance_enrollment_area = px.bar(
+                    distance_enrollment_area, 
+                    x=distance_enrollment_area.index, 
+                    y=['Matriculado', 'Não Matriculado'], 
+                    title=f"Distribuição de Matrícula por Distância na Área {area}",
+                    labels={'value': 'Número de Estudantes', 'Distância': 'Distância', 'variable': 'Status'}
+                )
+                fig_distance_enrollment_area.update_layout(barmode='stack')
+                st.plotly_chart(fig_distance_enrollment_area)
+
+        elif statistics_type == "🤖 Desempenho da IA":
+            # Carrega os dados de histórico de métricas e predições
+            with open('fold_histories.json', 'r') as f:
+                fold_histories = json.load(f)
+            
+            test_data = pd.read_csv('test_predictions.csv')
+            y_true = test_data['labels']
+            y_pred = (test_data['predictions'] > 0.5).astype(int)  # Ajuste o threshold conforme necessário
+
+            # Curva de Acurácia
+            st.subheader("📈 Curva de Acurácia")
+            fig_accuracy = go.Figure()
+            for fold_accuracy in fold_histories['accuracy']:
+                fig_accuracy.add_trace(go.Scatter(
+                    x=list(range(1, len(fold_accuracy) + 1)),
+                    y=fold_accuracy,
+                    mode='lines',
+                    name="Acurácia Treinamento - Fold"
+                ))
+            for fold_val_accuracy in fold_histories['val_accuracy']:
+                fig_accuracy.add_trace(go.Scatter(
+                    x=list(range(1, len(fold_val_accuracy) + 1)),
+                    y=fold_val_accuracy,
+                    mode='lines',
+                    name="Acurácia Validação - Fold",
+                    line=dict(dash='dash')
+                ))
+            fig_accuracy.update_layout(
+                title="Curva de Acurácia ao Longo das Épocas",
+                xaxis_title="Épocas",
+                yaxis_title="Acurácia"
+            )
+            st.plotly_chart(fig_accuracy)
+
+            # Curva de Perda
+            st.subheader("📉 Curva de Perda")
+            fig_loss = go.Figure()
+            for fold_loss in fold_histories['loss']:
+                fig_loss.add_trace(go.Scatter(
+                    x=list(range(1, len(fold_loss) + 1)),
+                    y=fold_loss,
+                    mode='lines',
+                    name="Perda Treinamento - Fold"
+                ))
+            for fold_val_loss in fold_histories['val_loss']:
+                fig_loss.add_trace(go.Scatter(
+                    x=list(range(1, len(fold_val_loss) + 1)),
+                    y=fold_val_loss,
+                    mode='lines',
+                    name="Perda Validação - Fold",
+                    line=dict(dash='dash')
+                ))
+            fig_loss.update_layout(
+                title="Curva de Perda ao Longo das Épocas",
+                xaxis_title="Épocas",
+                yaxis_title="Perda"
+            )
+            st.plotly_chart(fig_loss)
+
+            # Matriz de Confusão
+            st.subheader("📊 Matriz de Confusão")
+            cm = confusion_matrix(y_true, y_pred)
+            fig_cm = go.Figure(data=go.Heatmap(
+                z=cm,
+                x=['Não Matriculado', 'Matriculado'],
+                y=['Não Matriculado', 'Matriculado'],
+                hoverongaps=False,
+                colorscale='Blues'
+            ))
+            fig_cm.update_layout(
+                title="Matriz de Confusão",
+                xaxis_title="Previsão",
+                yaxis_title="Real"
+            )
+            st.plotly_chart(fig_cm)
+
+            # Curva ROC e AUC
+            st.subheader("📈 Curva ROC e AUC")
+            fpr, tpr, _ = roc_curve(y_true, test_data['predictions'])
+            roc_auc = auc(fpr, tpr)
+            fig_roc = go.Figure()
+            fig_roc.add_trace(go.Scatter(
+                x=fpr, y=tpr, mode='lines', name=f"AUC = {roc_auc:.2f}"
+            ))
+            fig_roc.add_trace(go.Scatter(
+                x=[0, 1], y=[0, 1], mode='lines', name="Aleatório", line=dict(dash="dash")
+            ))
+            fig_roc.update_layout(
+                title="Curva ROC",
+                xaxis_title="Taxa de Falso Positivo (FPR)",
+                yaxis_title="Taxa de Verdadeiro Positivo (TPR)"
+            )
+            st.plotly_chart(fig_roc)
+
 
     elif option == "💬 Falar com AI":
         st.write("### 💬 Chat com o Assistente AI")
